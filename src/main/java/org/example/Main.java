@@ -3,8 +3,10 @@ package org.example;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerGraph;
 import org.example.operations.Operation;
 import org.example.operations.Queries;
+import org.example.threads.workerThread;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 
 import static java.util.concurrent.Executors.newFixedThreadPool;
 
@@ -26,11 +28,11 @@ public class Main {
         Operation operation = new Operation();
         operation.computeQueryMix();
 
-//        ExecutorService threadPool= newFixedThreadPool(1);
-//        for(int i=0;i<5000;i++){
-//            threadPool.submit(new workerThread(graph, queries));
-//        }
-//        threadPool.shutdown();
+        ExecutorService threadPool= newFixedThreadPool(1);
+        for(int i=0;i<1;i++){
+            threadPool.submit(new workerThread(graph));
+        }
+        threadPool.shutdown();
 
     }
 

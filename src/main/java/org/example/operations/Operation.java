@@ -3,6 +3,7 @@ package org.example.operations;
 import org.apache.commons.configuration2.Configuration;
 import org.apache.commons.configuration2.builder.fluent.Configurations;
 import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerGraph;
 
 import java.io.File;
@@ -33,8 +34,8 @@ public class Operation {
     static double simpleReads = 0.5;
     static double longTraversal = 0.1;
 
-    static Map<Double, Consumer<Object[]>> queries = new HashMap<>();
-    static List<Double> queryDistribution = new ArrayList<>();
+    public static Map<Double, Pair<String,Consumer<Object[]>>> queries = new HashMap<>();
+    public static List<Double> queryDistribution = new ArrayList<>();
     public void computeQueryMix() {
 
         try {
@@ -61,104 +62,104 @@ public class Operation {
             queryDistribution.add(cdf);
 
             // Create/Update/Delete operations.
-            queries.put(cdf, Queries::addVertex);
+            queries.put(cdf, Pair.of("addVertex", Queries::addVertex));
             cdf += update/UpdateCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::addEdge);
+            queries.put(cdf, Pair.of("addEdge", Queries::addEdge));
             cdf += update/UpdateCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::setVertexProperty);
+            queries.put(cdf, Pair.of("setVertexProperty", Queries::setVertexProperty));
             cdf += update/UpdateCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::setEdgeProperty);
+            queries.put(cdf, Pair.of("setEdgeProperty", Queries::setEdgeProperty));
             cdf += update/UpdateCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::removeVertex);
+            queries.put(cdf, Pair.of("removeVertex", Queries::removeVertex));
             cdf += update/UpdateCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::removeEdge);
+            queries.put(cdf, Pair.of("removeEdge", Queries::removeEdge));
             cdf += update/UpdateCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::removeVertexProperty);
+            queries.put(cdf, Pair.of("removeVertexProperty", Queries::removeVertexProperty));
             cdf += update/UpdateCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::removeEdgeProperty);
+            queries.put(cdf, Pair.of("removeEdgeProperty", Queries::removeEdgeProperty));
 
 
             // Read operations.
             cdf += simpleReads/SimpleReadCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getVertexCount);
+            queries.put(cdf, Pair.of("getVertexCount", Queries::getVertexCount));
             cdf += simpleReads/SimpleReadCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getEdgeCount);
+            queries.put(cdf, Pair.of("getEdgeCount", Queries::getEdgeCount));
             cdf += simpleReads/SimpleReadCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getUniqueEdgeLabels);
+            queries.put(cdf, Pair.of("getUniqueEdgeLabels", Queries::getUniqueEdgeLabels));
             cdf += simpleReads/SimpleReadCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getVerticesByProperty);
+            queries.put(cdf, Pair.of("getVerticesByProperty", Queries::getVerticesByProperty));
             cdf += simpleReads/SimpleReadCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getEdgesByProperty);
+            queries.put(cdf, Pair.of("getEdgesByProperty", Queries::getEdgesByProperty));
             cdf += simpleReads/SimpleReadCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getEdgesByLabel);
+            queries.put(cdf, Pair.of("getEdgesByLabel", Queries::getEdgesByLabel));
             cdf += simpleReads/SimpleReadCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getVertexById);
+            queries.put(cdf, Pair.of("getVertexById", Queries::getVertexById));
             cdf += simpleReads/SimpleReadCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getEdgeById);
+            queries.put(cdf, Pair.of("getEdgeById", Queries::getEdgeById));
 
 
             //Complex reads
             cdf += complexReads/ComplexReadCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getParents);
+            queries.put(cdf, Pair.of("getParents", Queries::getParents));
             cdf += complexReads/ComplexReadCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getChildren);
+            queries.put(cdf, Pair.of("getChildren", Queries::getChildren));
             cdf += complexReads/ComplexReadCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getNeighborsWithLabel);
+            queries.put(cdf, Pair.of("getNeighborsWithLabel", Queries::getNeighborsWithLabel));
             cdf += complexReads/ComplexReadCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getUniqueLabelsOfParents);
+            queries.put(cdf, Pair.of("getUniqueLabelsOfParents", Queries::getUniqueLabelsOfParents));
             cdf += complexReads/ComplexReadCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getUniqueLabelsOfChildren);
+            queries.put(cdf, Pair.of("getUniqueLabelsOfChildren", Queries::getUniqueLabelsOfChildren));
             cdf += complexReads/ComplexReadCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getUniqueLabelsOfNeighbors);
+            queries.put(cdf, Pair.of("getUniqueLabelsOfNeighbors", Queries::getUniqueLabelsOfNeighbors));
 
             //Long Traversal
             cdf += longTraversal/LongTraversalCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getVerticesMinKIN);
+            queries.put(cdf, Pair.of("getVerticesMinKIN", Queries::getVerticesMinKIN));
             cdf += longTraversal/LongTraversalCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getVerticesMinKOUT);
+            queries.put(cdf, Pair.of("getVerticesMinKOUT", Queries::getVerticesMinKOUT));
             cdf += longTraversal/LongTraversalCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getVerticesMinK);
+            queries.put(cdf, Pair.of("getVerticesMinK", Queries::getVerticesMinK));
             cdf += longTraversal/LongTraversalCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getVerticesWithnIncomingEdges);
+            queries.put(cdf, Pair.of("getVerticesWithnIncomingEdges", Queries::getVerticesWithnIncomingEdges));
             cdf += longTraversal/LongTraversalCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::BFSFromVertex);
+            queries.put(cdf, Pair.of("BFSFromVertex", Queries::BFSFromVertex));
             cdf += longTraversal/LongTraversalCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::BFSFromVertexWithLabel);
+            queries.put(cdf, Pair.of("BFSFromVertexWithLabel", Queries::BFSFromVertexWithLabel));
             cdf += longTraversal/LongTraversalCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getShortestPath);
+            queries.put(cdf, Pair.of("getShortestPath", Queries::getShortestPath));
             cdf += longTraversal/LongTraversalCount;
             queryDistribution.add(cdf);
-            queries.put(cdf, Queries::getShortestPathWithLabel);
+            queries.put(cdf, Pair.of("getShortestPathWithLabel", Queries::getShortestPathWithLabel));
 
-            System.out.println("Query mix computed" + queryDistribution.size());
+            System.out.println("Query mix computed");
 
         } catch (ConfigurationException cex){
             System.out.println(cex.getMessage());
