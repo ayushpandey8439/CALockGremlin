@@ -3,6 +3,9 @@ package org.example;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVWriter;
 import com.opencsv.exceptions.CsvValidationException;
+import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.configuration2.builder.fluent.Configurations;
+import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerGraph;
@@ -29,22 +32,36 @@ import static java.util.concurrent.Executors.newFixedThreadPool;
 
 public class Main {
     static TinkerGraph graph = TinkerGraph.open();
+    static Configurations configs = new Configurations();
+    public static Configuration config;
+
+    static {
+        try {
+            config = configs.properties(new File("queryMix.properties"));
+        } catch (ConfigurationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static void main(String[] args) throws IOException, CsvValidationException {
         TinkerGraph graph = TinkerGraph.open(); //1
-        String filename = "yeast";
+        String filename = config.getString("benchmarkData");
+        String type = config.getString("benchmarkDataType");
 
-        // Use this to extract the snapshot and workload from the CSV files.
-//        exrtractWorkloadFromCsv("/home/pandey/work/CALockGremlin/graphs/"+filename+".csv",
-//                "/home/pandey/work/CALockGremlin/graphs/"+filename+"-snapshot.csv",
-//                "/home/pandey/work/CALockGremlin/graphs/"+filename+"-workload.csv",
-//                10);
 
-        extractWorkloadFromJSON("/home/pandey/work/CALockGremlin/graphs/"+filename+".json",
-                "/home/pandey/work/CALockGremlin/graphs/"+filename+"-snapshot.json",
-                "/home/pandey/work/CALockGremlin/graphs/"+filename+"-workload.json",
+        if(type.equals("json")) {
+            extractWorkloadFromJSON("/home/pandey/work/CALockGremlin/graphs/"+filename+".json",
+                    "/home/pandey/work/CALockGremlin/graphs/"+filename+"-snapshot.json",
+                    "/home/pandey/work/CALockGremlin/graphs/"+filename+"-workload.json",
+                    10);
+            graph.loadGraphSON("/home/pandey/work/CALockGremlin/graphs/"+filename+"-snapshot.json");
+        } else {
+            exrtractWorkloadFromCsv("/home/pandey/work/CALockGremlin/graphs/"+filename+".csv",
+                "/home/pandey/work/CALockGremlin/graphs/"+filename+"-snapshot.csv",
+                "/home/pandey/work/CALockGremlin/graphs/"+filename+"-workload.csv",
                 10);
-
-        graph.loadGraphCSV("/home/pandey/work/CALockGremlin/graphs/"+filename+"-snapshot.csv");
+            graph.loadGraphCSV("/home/pandey/work/CALockGremlin/graphs/"+filename+"-snapshot.csv");
+        }
         System.out.println("Loaded graph. Initiating labelling...");
         System.out.println("Number of vertices: "+graph.traversal().V().count().next());
         System.out.println("Number of roots: "+graph.roots.size());

@@ -6,8 +6,9 @@
   <component name="ChangeListManager">
     <list default="true" id="c457d8e4-ae72-4530-b3bb-19feba27a10f" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/example/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/Main.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/operations/Operation.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/operations/Operation.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/queryMix.properties" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/queryMix.properties" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -112,7 +113,7 @@
       <workItem from="1707301997712" duration="8601000" />
       <workItem from="1707393476078" duration="1530000" />
       <workItem from="1707552451954" duration="1136000" />
-      <workItem from="1707572981142" duration="2823000" />
+      <workItem from="1707572981142" duration="4175000" />
     </task>
     <servers />
   </component>
@@ -127,11 +128,10 @@
           <line>21</line>
           <option name="timeStamp" value="2" />
         </line-breakpoint>
-        <line-breakpoint enabled="true" type="java-line">
-          <url>file://$PROJECT_DIR$/src/main/java/org/example/Main.java</url>
-          <line>51</line>
-          <option name="timeStamp" value="4" />
-        </line-breakpoint>
+        <breakpoint enabled="true" type="java-exception">
+          <properties class="java.lang.IllegalArgumentException" package="java.lang" />
+          <option name="timeStamp" value="5" />
+        </breakpoint>
       </breakpoints>
     </breakpoint-manager>
     <pin-to-top-manager>

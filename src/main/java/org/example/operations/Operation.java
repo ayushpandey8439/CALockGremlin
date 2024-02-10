@@ -14,6 +14,8 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static org.example.Main.config;
+
 public class Operation {
 
     // In a social network, this means the workload is read-dominated: for instance, Facebook recently
@@ -39,8 +41,6 @@ public class Operation {
     public void computeQueryMix() {
 
         try {
-            Configurations configs = new Configurations();
-            Configuration config = configs.properties(new File("queryMix.properties"));
             update = config.getDouble("updates");
             reads = config.getDouble("reads");
             simpleReads = config.getDouble("simpleReads");
