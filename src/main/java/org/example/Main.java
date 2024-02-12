@@ -6,17 +6,12 @@ import com.opencsv.exceptions.CsvValidationException;
 import org.apache.commons.configuration2.Configuration;
 import org.apache.commons.configuration2.builder.fluent.Configurations;
 import org.apache.commons.configuration2.ex.ConfigurationException;
-import org.apache.tinkerpop.gremlin.structure.T;
-import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerGraph;
-import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerVertex;
 import org.apache.tinkerpop.shaded.jackson.core.JsonFactory;
 import org.apache.tinkerpop.shaded.jackson.core.JsonParser;
 import org.apache.tinkerpop.shaded.jackson.core.JsonToken;
 import org.example.operations.Operation;
-import org.example.operations.Queries;
 import org.example.threads.workerThread;
-import org.javatuples.Pair;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -37,7 +32,7 @@ public class Main {
 
     static {
         try {
-            config = configs.properties(new File("queryMix.properties"));
+            config = configs.properties(new File("benchmarkParameters.properties"));
         } catch (ConfigurationException e) {
             throw new RuntimeException(e);
         }
@@ -50,17 +45,17 @@ public class Main {
 
 
         if(type.equals("json")) {
-            extractWorkloadFromJSON("/home/pandey/work/CALockGremlin/graphs/"+filename+".json",
-                    "/home/pandey/work/CALockGremlin/graphs/"+filename+"-snapshot.json",
-                    "/home/pandey/work/CALockGremlin/graphs/"+filename+"-workload.json",
+            extractWorkloadFromJSON(config.getString("dataPath")+filename+".json",
+                    config.getString("dataPath")+filename+"-snapshot.json",
+                    config.getString("dataPath")+filename+"-workload.json",
                     10);
-            graph.loadGraphSON("/home/pandey/work/CALockGremlin/graphs/"+filename+"-snapshot.json");
+            graph.loadGraphSON(config.getString("dataPath")+filename+"-snapshot.json");
         } else {
-            exrtractWorkloadFromCsv("/home/pandey/work/CALockGremlin/graphs/"+filename+".csv",
-                "/home/pandey/work/CALockGremlin/graphs/"+filename+"-snapshot.csv",
-                "/home/pandey/work/CALockGremlin/graphs/"+filename+"-workload.csv",
+            exrtractWorkloadFromCsv(config.getString("dataPath")+filename+".csv",
+                    config.getString("dataPath")+filename+"-snapshot.csv",
+                    config.getString("dataPath")+filename+"-workload.csv",
                 10);
-            graph.loadGraphCSV("/home/pandey/work/CALockGremlin/graphs/"+filename+"-snapshot.csv");
+            graph.loadGraphCSV(config.getString("dataPath")+filename+"-snapshot.csv");
         }
         System.out.println("Loaded graph. Initiating labelling...");
         System.out.println("Number of vertices: "+graph.traversal().V().count().next());
@@ -75,7 +70,6 @@ public class Main {
     public static void runBenchmark(){
         Operation operation = new Operation();
         operation.computeQueryMix();
-
         ExecutorService threadPool= newFixedThreadPool(1);
         for(int i=0;i<1;i++){
             threadPool.submit(new workerThread(graph));
@@ -214,8 +208,6 @@ public class Main {
         jParser.close();
         snapshotWriter.close();
         workloadWriter.close();
-
-
     }
 
 
