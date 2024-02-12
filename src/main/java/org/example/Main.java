@@ -135,7 +135,7 @@ public class Main {
         Set<Integer> workloadVertices = new HashSet<>();
         JsonFactory jfactory = new JsonFactory();
         JsonParser jParser = jfactory.createParser(new File(inputFile));
-        Stack<JsonToken> TokenStack = new Stack<>();
+        Stack<JsonToken> TokenStack = new Stack<JsonToken>();
         boolean vertexMode = false;
         boolean edgeMode = false;
         int objectNumber = 0;
