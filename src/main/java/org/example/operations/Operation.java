@@ -1,17 +1,9 @@
 package org.example.operations;
 
-import org.apache.commons.configuration2.Configuration;
-import org.apache.commons.configuration2.builder.fluent.Configurations;
 import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.commons.lang3.tuple.Pair;
-import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerGraph;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.BiConsumer;
+import java.util.*;
 import java.util.function.Consumer;
 
 import static org.example.Main.config;
@@ -32,137 +24,115 @@ public class Operation {
     //  workload should have about 50% of the total queries from the complex traversal category.
     static double update = 0.1;
     static double reads = 0.9;
-    static double complexReads = 0.3;
     static double simpleReads = 0.5;
     static double longTraversal = 0.1;
 
-    public static Map<Double, Pair<String,Consumer<Object[]>>> queries = new HashMap<>();
-    public static List<Double> queryDistribution = new ArrayList<>();
+    public static Map<Double, Pair<String, Consumer<Pair<Integer, Object[]>>>> queries = new HashMap<>();
+    public static LinkedList<Double> queryDistribution = new LinkedList<>();
+    public static Map<String, Consumer<Pair<Integer, Object[]>>> queryList = new HashMap<>();
+
     public void computeQueryMix() {
 
         try {
             update = config.getDouble("updates");
-            reads = config.getDouble("reads");
-            simpleReads = config.getDouble("simpleReads");
-            complexReads = config.getDouble("complexReads");
-            longTraversal = reads-simpleReads-complexReads;
-            if (longTraversal < 0){
+            reads = 1.0-update;
+            simpleReads = reads*config.getDouble("simpleReads");
+//            complexReads = reads*config.getDouble("complexReads");
+            longTraversal = reads - simpleReads;
+            if (longTraversal < 0) {
                 throw new ConfigurationException("No Long traversals inluded in the query mix.");
             }
-            if(simpleReads + complexReads + update + longTraversal != 1.0){
+            if (simpleReads + update + longTraversal != 1.0) {
                 throw new ConfigurationException("The sum of the query mix should be 1.0");
             }
 
-            int UpdateCount = 9;
-            int SimpleReadCount = 8;
-            int ComplexReadCount = 6;
-            int LongTraversalCount = 8;
+//            int UpdateCount = 9;
+//            int SimpleReadCount = 8;
+//            int ComplexReadCount = 6;
+//            int LongTraversalCount = 8;
 
             double cdf = 0.0;
-            queryDistribution.add(cdf);
+//            queryDistribution.add(cdf);
 
-            // Create/Update/Delete operations.
-            queries.put(cdf, Pair.of("addVertex", Queries::addVertex));
-            cdf += update/UpdateCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("addEdge", Queries::addEdge));
-            cdf += update/UpdateCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("setVertexProperty", Queries::setVertexProperty));
-            cdf += update/UpdateCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("setEdgeProperty", Queries::setEdgeProperty));
-            cdf += update/UpdateCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("removeVertex", Queries::removeVertex));
-            cdf += update/UpdateCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("removeEdge", Queries::removeEdge));
-            cdf += update/UpdateCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("removeVertexProperty", Queries::removeVertexProperty));
-            cdf += update/UpdateCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("removeEdgeProperty", Queries::removeEdgeProperty));
+            List<Object> CRUDQueries = config.getList("CRUDQueries");
 
+            for (Object query : CRUDQueries) {
+                String queryName = (String) query;
+                if(queryName.isEmpty()){continue;}
+                queries.put(cdf, Pair.of(queryName, queryList.get(queryName)));
+                queryDistribution.add(cdf);
+                cdf += update / CRUDQueries.size();
 
-            // Read operations.
-            cdf += simpleReads/SimpleReadCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getVertexCount", Queries::getVertexCount));
-            cdf += simpleReads/SimpleReadCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getEdgeCount", Queries::getEdgeCount));
-            cdf += simpleReads/SimpleReadCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getUniqueEdgeLabels", Queries::getUniqueEdgeLabels));
-            cdf += simpleReads/SimpleReadCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getVerticesByProperty", Queries::getVerticesByProperty));
-            cdf += simpleReads/SimpleReadCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getEdgesByProperty", Queries::getEdgesByProperty));
-            cdf += simpleReads/SimpleReadCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getEdgesByLabel", Queries::getEdgesByLabel));
-            cdf += simpleReads/SimpleReadCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getVertexById", Queries::getVertexById));
-            cdf += simpleReads/SimpleReadCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getEdgeById", Queries::getEdgeById));
+            }
 
+            List<Object> SimpleReadQueries = config.getList("SimpleReadQueries");
+            for (Object query : SimpleReadQueries) {
+                String queryName = (String) query;
+                if(queryName.isEmpty()){continue;}
+                queries.put(cdf, Pair.of(queryName, queryList.get(queryName)));
+                queryDistribution.add(cdf);
+                cdf += simpleReads / SimpleReadQueries.size();
+            }
+//
+//            List<Object> ComplexReadQueries = config.getList("ComplexReadQueries");
+//            for (Object query : ComplexReadQueries) {
+//                String queryName = (String) query;
+//                if(queryName.isEmpty()){continue;}
+//                queries.put(cdf, Pair.of(queryName, queryList.get(queryName)));
+//                queryDistribution.add(cdf);
+//                cdf += complexReads / ComplexReadQueries.size();
+//            }
 
-            //Complex reads
-            cdf += complexReads/ComplexReadCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getParents", Queries::getParents));
-            cdf += complexReads/ComplexReadCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getChildren", Queries::getChildren));
-            cdf += complexReads/ComplexReadCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getNeighborsWithLabel", Queries::getNeighborsWithLabel));
-            cdf += complexReads/ComplexReadCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getUniqueLabelsOfParents", Queries::getUniqueLabelsOfParents));
-            cdf += complexReads/ComplexReadCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getUniqueLabelsOfChildren", Queries::getUniqueLabelsOfChildren));
-            cdf += complexReads/ComplexReadCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getUniqueLabelsOfNeighbors", Queries::getUniqueLabelsOfNeighbors));
+            List<Object> LongTraversalQueries = config.getList("LongTraversalQueries");
+            for (Object query : LongTraversalQueries) {
+                String queryName = (String) query;
+                if(queryName.isEmpty()){continue;}
+                queries.put(cdf, Pair.of(queryName, queryList.get(queryName)));
+                queryDistribution.add(cdf);
+                cdf += longTraversal / LongTraversalQueries.size();
 
-            //Long Traversal
-            cdf += longTraversal/LongTraversalCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getVerticesMinKIN", Queries::getVerticesMinKIN));
-            cdf += longTraversal/LongTraversalCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getVerticesMinKOUT", Queries::getVerticesMinKOUT));
-            cdf += longTraversal/LongTraversalCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getVerticesMinK", Queries::getVerticesMinK));
-            cdf += longTraversal/LongTraversalCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getVerticesWithnIncomingEdges", Queries::getVerticesWithnIncomingEdges));
-            cdf += longTraversal/LongTraversalCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("BFSFromVertex", Queries::BFSFromVertex));
-            cdf += longTraversal/LongTraversalCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("BFSFromVertexWithLabel", Queries::BFSFromVertexWithLabel));
-            cdf += longTraversal/LongTraversalCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getShortestPath", Queries::getShortestPath));
-            cdf += longTraversal/LongTraversalCount;
-            queryDistribution.add(cdf);
-            queries.put(cdf, Pair.of("getShortestPathWithLabel", Queries::getShortestPathWithLabel));
+            }
+            queryDistribution.add(1.0);
 
             System.out.println("Query mix computed");
 
-        } catch (ConfigurationException cex){
+        } catch (ConfigurationException cex) {
             System.out.println(cex.getMessage());
         }
+
+
+    }
+
+    public Operation() {
+        queryList.put("addVertex", Queries::addVertex);
+        queryList.put("addEdge", Queries::addEdge);
+        queryList.put("setVertexProperty", Queries::setVertexProperty);
+        queryList.put("setEdgeProperty", Queries::setEdgeProperty);
+        queryList.put("removeVertex", Queries::removeVertex);
+        queryList.put("removeEdge", Queries::removeEdge);
+        queryList.put("removeVertexProperty", Queries::removeVertexProperty);
+        queryList.put("removeEdgeProperty", Queries::removeEdgeProperty);
+        queryList.put("getVertexCount", Queries::getVertexCount);
+        queryList.put("getEdgeCount", Queries::getEdgeCount);
+        queryList.put("getUniqueEdgeLabels", Queries::getUniqueEdgeLabels);
+        queryList.put("getVerticesByProperty", Queries::getVerticesByProperty);
+        queryList.put("getEdgesByProperty", Queries::getEdgesByProperty);
+        queryList.put("getEdgesByLabel", Queries::getEdgesByLabel);
+        queryList.put("getVertexById", Queries::getVertexById);
+        queryList.put("getEdgeById", Queries::getEdgeById);
+//        queryList.put("getParents", Queries::getParents);
+//        queryList.put("getChildren", Queries::getChildren);
+//        queryList.put("getNeighborsWithLabel", Queries::getNeighborsWithLabel);
+//        queryList.put("getUniqueLabelsOfParents", Queries::getUniqueLabelsOfParents);
+//        queryList.put("getUniqueLabelsOfChildren", Queries::getUniqueLabelsOfChildren);
+//        queryList.put("getUniqueLabelsOfNeighbors", Queries::getUniqueLabelsOfNeighbors);
+        queryList.put("getVerticesMinKIN", Queries::getVerticesMinKIN);
+        queryList.put("getVerticesMinK", Queries::getVerticesMinK);
+        queryList.put("getVerticesWithnIncomingEdges", Queries::getVerticesWithnIncomingEdges);
+        queryList.put("BFSFromVertex", Queries::BFSFromVertex);
+        queryList.put("BFSFromVertexWithLabel", Queries::BFSFromVertexWithLabel);
+        queryList.put("getShortestPath", Queries::getShortestPath);
+        queryList.put("getShortestPathWithLabel", Queries::getShortestPathWithLabel);
+
     }
 }

@@ -3,9 +3,17 @@ package org.example;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVWriter;
 import com.opencsv.exceptions.CsvValidationException;
+import locking.lockPool;
 import org.apache.commons.configuration2.Configuration;
-import org.apache.commons.configuration2.builder.fluent.Configurations;
+import org.apache.commons.configuration2.FileBasedConfiguration;
+import org.apache.commons.configuration2.ImmutableConfiguration;
+import org.apache.commons.configuration2.PropertiesConfiguration;
+import org.apache.commons.configuration2.builder.FileBasedConfigurationBuilder;
+import org.apache.commons.configuration2.builder.fluent.Parameters;
+import org.apache.commons.configuration2.convert.DefaultListDelimiterHandler;
 import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.configuration2.io.FileBased;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerGraph;
 import org.apache.tinkerpop.shaded.jackson.core.JsonFactory;
 import org.apache.tinkerpop.shaded.jackson.core.JsonParser;
@@ -22,60 +30,137 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.concurrent.Executors.newFixedThreadPool;
 
 public class Main {
-    static TinkerGraph graph = TinkerGraph.open();
-    static Configurations configs = new Configurations();
-    public static Configuration config;
+    public static TinkerGraph graph = TinkerGraph.open();
+    public static ImmutableConfiguration config;
+    static Parameters params = new Parameters();
+    public static AtomicInteger vertexCount = new AtomicInteger(-1);
+    public static boolean active = true;
+    public static List<Integer> vertices = new ArrayList<>();
+    public static List<Pair<Integer, Integer>> edges = new ArrayList<>();
+
+    public static List<Integer> addedVertices = new ArrayList<>();
+    public static List<Pair<Integer, Integer>> edgeWorkload = new ArrayList<>();
+    public static List<Pair<Integer, Integer>> removeEdgeWorkload = new ArrayList<>();
+    public static Random generator;
+
+    static FileBasedConfigurationBuilder<FileBasedConfiguration> builder =
+            new FileBasedConfigurationBuilder<FileBasedConfiguration>(PropertiesConfiguration.class)
+                    .configure(params.properties()
+                            .setFileName("benchmarkParameters.properties")
+                            .setListDelimiterHandler(new DefaultListDelimiterHandler(',')));
 
     static {
         try {
-            config = configs.properties(new File("benchmarkParameters.properties"));
+            config = builder.getConfiguration();
         } catch (ConfigurationException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public static void main(String[] args) throws IOException, CsvValidationException {
-        TinkerGraph graph = TinkerGraph.open(); //1
+    public static lockPool lockPool = new lockPool();
+
+
+    public static void main(String[] args) throws IOException, CsvValidationException, InterruptedException {
+        graph = TinkerGraph.open();
         String filename = config.getString("benchmarkData");
         String type = config.getString("benchmarkDataType");
-
-
-        if(type.equals("json")) {
-            extractWorkloadFromJSON(config.getString("dataPath")+filename+".json",
-                    config.getString("dataPath")+filename+"-snapshot.json",
-                    config.getString("dataPath")+filename+"-workload.json",
+        generator = new Random(Long.parseLong(config.getString("randomSeed")));
+        if (type.equals("json")) {
+            extractWorkloadFromJSON(config.getString("dataPath") + filename + ".json",
+                    config.getString("dataPath") + filename + "-snapshot.json",
+                    config.getString("dataPath") + filename + "-workload.json",
                     10);
-            graph.loadGraphSON(config.getString("dataPath")+filename+"-snapshot.json");
+            graph.loadGraphSON(config.getString("dataPath") + filename + "-snapshot.json");
         } else {
-            exrtractWorkloadFromCsv(config.getString("dataPath")+filename+".csv",
-                    config.getString("dataPath")+filename+"-snapshot.csv",
-                    config.getString("dataPath")+filename+"-workload.csv",
-                10);
-            graph.loadGraphCSV(config.getString("dataPath")+filename+"-snapshot.csv");
+            exrtractWorkloadFromCsv(config.getString("dataPath") + filename + ".csv",
+                    config.getString("dataPath") + filename + "-snapshot.csv",
+                    config.getString("dataPath") + filename + "-workload.csv",
+                    10);
+            graph.loadGraphCSV(config.getString("dataPath") + filename + "-snapshot.csv");
         }
+        System.out.println("Threads: " + config.getInt("threads") + " Duration: " + config.getLong("duration")/1000 + "s");
         System.out.println("Loaded graph. Initiating labelling...");
-        System.out.println("Number of vertices: "+graph.traversal().V().count().next());
-        System.out.println("Number of roots: "+graph.roots.size());
-        System.out.println("Number of sinks: "+graph.sinks.size());
+        System.out.println("Number of vertices: " + graph.traversal().V().count().next());
+        System.out.println("Number of roots: " + graph.roots.size());
+        System.out.println("Number of sinks: " + graph.sinks.size());
         graph.labelGraph();
-        System.out.println("Labelling complete. Initiating thread pool...");
+        System.out.println("Labelling complete. Starting benchmark...");
         runBenchmark();
     }
 
 
-    public static void runBenchmark(){
+    public static void runBenchmark() throws InterruptedException {
         Operation operation = new Operation();
         operation.computeQueryMix();
-        ExecutorService threadPool= newFixedThreadPool(1);
-        for(int i=0;i<1;i++){
-            threadPool.submit(new workerThread(graph));
+        Set<Future<Pair<Map<String, Integer>, Map<String,Integer>>>> queryResults = new HashSet<>();
+        ExecutorService threadPool = newFixedThreadPool(config.getInt("threads"));
+
+
+        for (int i = 0; i < config.getInt("threads"); i++) {
+            Future<Pair<Map<String, Integer>, Map<String,Integer>>> result = threadPool.submit(new workerThread(i));
+            queryResults.add(result);
         }
-        threadPool.shutdown();
+        Thread.sleep(config.getLong("duration"));
+        active = false;
+        System.out.println("Shutting down benchmark run.");
+        try{
+            threadPool.shutdownNow();
+            if(!threadPool.awaitTermination(1, java.util.concurrent.TimeUnit.SECONDS)){
+                threadPool.shutdownNow();
+                if(!threadPool.awaitTermination(1, java.util.concurrent.TimeUnit.SECONDS)){
+                    System.err.println("Waiting for thread pool to finish.");
+                }
+            }
+        } catch (InterruptedException e){
+            threadPool.shutdownNow();
+//            Thread.currentThread().interrupt();
+        } finally {
+            showResults(queryResults);
+        }
+
     }
+
+    public static void showResults(Set<Future<Pair<Map<String, Integer>, Map<String,Integer>>>> queryResults) {
+        Map<String, Integer> SuccessCombinedQueryFrequency = new HashMap<>();
+        Map<String, Integer> FailedCombinedQueryFrequency = new HashMap<>();
+
+        for (Future<Pair<Map<String, Integer>, Map<String,Integer>>>result : queryResults) {
+            try {
+                Map<String, Integer> frequency = result.get().getLeft();
+                for (Map.Entry<String, Integer> entry : frequency.entrySet()) {
+                    SuccessCombinedQueryFrequency.merge(entry.getKey(), entry.getValue(), Integer::sum);
+                }
+                frequency = result.get().getRight();
+                for (Map.Entry<String, Integer> entry : frequency.entrySet()) {
+                    FailedCombinedQueryFrequency.merge(entry.getKey(), entry.getValue(), Integer::sum);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        SuccessCombinedQueryFrequency.remove("none");
+        FailedCombinedQueryFrequency.remove("none");
+
+        System.out.println("Success Query");
+        int count = 0;
+        for (Map.Entry<String, Integer> entry : SuccessCombinedQueryFrequency.entrySet()) {
+            System.out.println(entry.getKey() + ": " + entry.getValue());
+            count += entry.getValue();
+        }
+        System.out.println("Failed Query");
+        for (Map.Entry<String, Integer> entry : FailedCombinedQueryFrequency.entrySet()) {
+            System.out.println(entry.getKey() + ": " + entry.getValue());
+            count += entry.getValue();
+        }
+        System.out.println("Total Queries: " + count +" in "+ config.getLong("duration") + " ms");
+    }
+
 
     public static void exrtractWorkloadFromCsv(String inputFile, String snapshot, String workload, int frequency) throws IOException, CsvValidationException {
         assert frequency > 0;
@@ -103,6 +188,15 @@ public class Main {
             } else {
                 workloadRows.add(nextLine);
             }
+        }
+
+        for (String[] row : workloadRows) {
+            edgeWorkload.add(Pair.of(Integer.parseInt(row[0]), Integer.parseInt(row[1])));
+        }
+        for (String[] row : snapshotRows) {
+            vertices.add(Integer.parseInt(row[0]));
+            vertices.add(Integer.parseInt(row[1]));
+            edges.add(Pair.of(Integer.parseInt(row[0]), Integer.parseInt(row[1])));
         }
 
         snapshotWriter.writeAll(snapshotRows);
@@ -138,17 +232,17 @@ public class Main {
         JSONObject jsonObject = new JSONObject();
         do {
             JsonToken token = jParser.nextToken();
-            if(token == JsonToken.START_OBJECT && ! vertexMode && ! edgeMode) {
+            if (token == JsonToken.START_OBJECT && !vertexMode && !edgeMode) {
                 TokenStack.push(token);
             } else if (token == JsonToken.START_ARRAY) {
                 String fieldname = jParser.getCurrentName();
-                if("vertices".equals(fieldname)){
+                if ("vertices".equals(fieldname)) {
                     snapshotWriter.write(",\"vertices\":[");
                     workloadWriter.write(",\"vertices\":[");
                     vertexMode = true;
                     edgeMode = false;
                 }
-                if("edges".equals(fieldname)){
+                if ("edges".equals(fieldname)) {
                     snapshotWriter.write(",\"edges\":[");
                     workloadWriter.write(",\"edges\":[");
                     vertexMode = false;
@@ -157,7 +251,7 @@ public class Main {
                 TokenStack.push(token);
             } else if (token == JsonToken.START_OBJECT && vertexMode) {
                 jsonObject.clear();
-                while(jParser.nextToken() != JsonToken.END_OBJECT) {
+                while (jParser.nextToken() != JsonToken.END_OBJECT) {
                     String fieldName = jParser.getCurrentName();
                     jParser.nextToken();
                     String value = jParser.getText();
@@ -174,10 +268,9 @@ public class Main {
                     workloadWriter.write(",");
                 }
                 jsonObject.clear();
-            }
-            else if (token == JsonToken.START_OBJECT && edgeMode) {
+            } else if (token == JsonToken.START_OBJECT && edgeMode) {
                 jsonObject.clear();
-                while(jParser.nextToken() != JsonToken.END_OBJECT) {
+                while (jParser.nextToken() != JsonToken.END_OBJECT) {
                     String fieldName = jParser.getCurrentName();
                     jParser.nextToken();
                     String value = jParser.getText();
@@ -186,16 +279,14 @@ public class Main {
                 if (workloadVertices.contains(jsonObject.getInt("_inV")) || workloadVertices.contains(jsonObject.getInt("_outV"))) {
                     workloadWriter.write(jsonObject.toString());
                     workloadWriter.write(",");
-                }else {
+                } else {
                     snapshotWriter.write(jsonObject.toString());
                     snapshotWriter.write(",");
                 }
                 jsonObject.clear();
-            }
-            else if (token == JsonToken.END_OBJECT) {
+            } else if (token == JsonToken.END_OBJECT) {
                 TokenStack.pop();
-            }
-            else if (token == JsonToken.END_ARRAY) {
+            } else if (token == JsonToken.END_ARRAY) {
                 snapshotWriter.write("{}");
                 workloadWriter.write("{}");
                 snapshotWriter.write("]");
