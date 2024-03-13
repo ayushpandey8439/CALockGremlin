@@ -15,7 +15,7 @@ import java.util.function.Consumer;
 
 import static org.example.Main.*;
 
-public class workerThread extends Queries implements Callable<Pair<Map<String, Integer>, Map<String,Integer>>> {
+public class workerThread extends Queries implements Callable<Pair<Map<String, Integer>, Map<String, Integer>>> {
     int ThreadId;
 
     public workerThread(int ThreadId) {
@@ -27,27 +27,20 @@ public class workerThread extends Queries implements Callable<Pair<Map<String, I
         Map<String, Integer> SuccessQueryCount = new HashMap<>();
         Map<String, Integer> FailedQueryCount = new HashMap<>();
         while (!Thread.currentThread().isInterrupted() && active) {
-            Pair<String, Integer> result = runQuery(ThreadId);
-            if(result.getRight()==1){
+            Pair<String, Integer> result = runQuery();
+            if (result.getRight() == 1) {
                 SuccessQueryCount.merge(result.getLeft(), 1, Integer::sum);
             } else {
                 FailedQueryCount.merge(result.getLeft(), 1, Integer::sum);
             }
         }
-        lockPool.unlock(ThreadId);
         return Pair.of(SuccessQueryCount, FailedQueryCount);
     }
 
-    public Pair<String,Integer> runQuery(int ThreadId) {
+    public Pair<String, Integer> runQuery() {
         int range = Operation.queryDistribution.size();
         double randomNumber = generator.nextDouble();
         Pair<String, Consumer<Pair<Integer, Object[]>>> query;
-//        Pair<String, Consumer<Pair<Integer, Object[]>>> query = Operation.queries.get(Operation.queryDistribution.get(randomNumber));
-//        Vertex v = graph.vertex(36689);
-//        query.getRight().accept(Pair.of(ThreadId, new Object[]{}));
-//        System.out.println(v.property("name").value());
-        // Print the random number
-//        System.out.println(randomNumber);
         for (int i = 0; i < Operation.queryDistribution.size(); i++) {
             if (randomNumber < Operation.queryDistribution.get(i)) {
                 query = Operation.queries.get(Operation.queryDistribution.get(i - 1));
@@ -61,7 +54,8 @@ public class workerThread extends Queries implements Callable<Pair<Map<String, I
                             break;
                         case "addEdge":
                             int edgeNumber = generator.nextInt(edgeWorkload.size());
-                            Pair<Integer, Integer> edge = edgeWorkload.get(edgeNumber);
+                            Pair<Integer, Integer> edge = edgeWorkload.remove(edgeNumber);
+                            removeEdgeWorkload.add(edge);
                             TinkerVertex v1 = (TinkerVertex) graph.vertex(edge.getLeft());
                             TinkerVertex v2 = (TinkerVertex) graph.vertex(edge.getRight());
                             if (v1 == null) {
@@ -70,9 +64,9 @@ public class workerThread extends Queries implements Callable<Pair<Map<String, I
                             if (v2 == null) {
                                 v2 = (TinkerVertex) graph.addVertex(T.id, edge.getRight());
                             }
-                            query.getRight().accept(Pair.of(ThreadId, new Object[]{v1, v2, "newEdge", new Object[] {T.id, edge.getLeft() + "-" + edge.getRight()}}));
-                            edgeWorkload.remove(edgeNumber);
-                            removeEdgeWorkload.add(edge);
+                            query.getRight().accept(Pair.of(ThreadId, new Object[]{v1, v2, "newEdge", new Object[]{T.id, edge.getLeft() + "-" + edge.getRight()}}));
+
+
                             break;
                         case "setVertexProperty":
                             int vertexProp = vertices.get(generator.nextInt(vertices.size()));
@@ -96,10 +90,9 @@ public class workerThread extends Queries implements Callable<Pair<Map<String, I
                                 break;
                             }
                             int removeEdgeNumber = generator.nextInt(removeEdgeWorkload.size());
-                            Pair<Integer, Integer> removeEdge = removeEdgeWorkload.get(removeEdgeNumber);
-                            query.getRight().accept(Pair.of(ThreadId, new Object[]{graph.edges(removeEdge.getLeft() + "-" + removeEdge.getRight()).next()}));
-                            removeEdgeWorkload.remove(removeEdgeNumber);
+                            Pair<Integer, Integer> removeEdge = removeEdgeWorkload.remove(removeEdgeNumber);
                             edgeWorkload.add(removeEdge);
+                            query.getRight().accept(Pair.of(ThreadId, new Object[]{graph.edges(removeEdge.getLeft() + "-" + removeEdge.getRight()).next()}));
                             break;
                         case "removeVertexProperty":
                             int vertexPropRemove = vertices.get(generator.nextInt(vertices.size()));
@@ -117,11 +110,10 @@ public class workerThread extends Queries implements Callable<Pair<Map<String, I
                             query.getRight().accept(Pair.of(ThreadId, new Object[]{"newEdge"}));
                             break;
                         case "getVertexById":
-                            if (addedVertices.isEmpty()) {
-                                break;
+                            if (!addedVertices.isEmpty()) {
+                                int vertexId = addedVertices.get(generator.nextInt(addedVertices.size()));
+                                query.getRight().accept(Pair.of(ThreadId, new Object[]{vertexId}));
                             }
-                            int vertexId = addedVertices.get(generator.nextInt(addedVertices.size()));
-                            query.getRight().accept(Pair.of(ThreadId, new Object[]{vertexId}));
                             break;
                         case "getEdgeById":
                             Pair<Integer, Integer> edgeId = edges.get(generator.nextInt(edges.size()));
@@ -150,7 +142,7 @@ public class workerThread extends Queries implements Callable<Pair<Map<String, I
 
                         case "BFSFromVertexWithLabel":
                             int vertexBFSLabel = vertices.get(generator.nextInt(vertices.size()));
-                            query.getRight().accept(Pair.of(ThreadId, new Object[]{graph.vertex(vertexBFSLabel), "newEdge"}));
+                            query.getRight().accept(Pair.of(ThreadId, new Object[]{graph.vertex(vertexBFSLabel), "edge"}));
                             break;
                         case "getShortestPath":
                             int vertex1 = vertices.get(generator.nextInt(vertices.size()));
@@ -174,6 +166,6 @@ public class workerThread extends Queries implements Callable<Pair<Map<String, I
             }
         }
 //        query = Operation.queries.get(Operation.queryDistribution.getLast());
-        return Pair.of("none",0);
+        return Pair.of("none", 0);
     }
 }

@@ -85,6 +85,7 @@ public class Main {
             graph.loadGraphCSV(config.getString("dataPath") + filename + "-snapshot.csv");
         }
         System.out.println("Threads: " + config.getInt("threads") + " Duration: " + config.getLong("duration")/1000 + "s");
+        System.out.println("Lock Type: " + config.getString("lockType"));
         System.out.println("Loaded graph. Initiating labelling...");
         System.out.println("Number of vertices: " + graph.traversal().V().count().next());
         System.out.println("Number of roots: " + graph.roots.size());
@@ -110,16 +111,14 @@ public class Main {
         active = false;
         System.out.println("Shutting down benchmark run.");
         try{
-            threadPool.shutdownNow();
-            if(!threadPool.awaitTermination(1, java.util.concurrent.TimeUnit.SECONDS)){
+            threadPool.shutdown();
+            if(!threadPool.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)){
+                System.err.println("Waiting for thread pool to finish.");
                 threadPool.shutdownNow();
-                if(!threadPool.awaitTermination(1, java.util.concurrent.TimeUnit.SECONDS)){
-                    System.err.println("Waiting for thread pool to finish.");
-                }
             }
         } catch (InterruptedException e){
             threadPool.shutdownNow();
-//            Thread.currentThread().interrupt();
+            Thread.currentThread().interrupt();
         } finally {
             showResults(queryResults);
         }
@@ -156,9 +155,10 @@ public class Main {
         System.out.println("Failed Query");
         for (Map.Entry<String, Integer> entry : FailedCombinedQueryFrequency.entrySet()) {
             System.out.println(entry.getKey() + ": " + entry.getValue());
-            count += entry.getValue();
+//            count += entry.getValue();
         }
         System.out.println("Total Queries: " + count +" in "+ config.getLong("duration") + " ms");
+        System.out.println("Latency: " + lockPool.latency + " ms");
     }
 
 

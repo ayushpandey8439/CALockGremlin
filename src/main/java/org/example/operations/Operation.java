@@ -22,6 +22,7 @@ public class Operation {
     // TODO: A Query that takes longer to run should run infrequently. But should be eligible to run at all times.
     //  For example. BFSFromVertexWithLabel should run less frequently than getVerticesByProperty. But the runtime
     //  workload should have about 50% of the total queries from the complex traversal category.
+
     static double update = 0.1;
     static double reads = 0.9;
     static double simpleReads = 0.5;

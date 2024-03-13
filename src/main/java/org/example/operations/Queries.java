@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static org.apache.tinkerpop.gremlin.process.traversal.P.gt;
+import static org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__.bothE;
+import static org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__.inE;
 import static org.example.Main.*;
 
 public class Queries {
@@ -36,19 +38,21 @@ public class Queries {
         List<Object> commonAncestors = source.getPathLabel().stream().filter(destination.getPathLabel()::contains).toList();
         if (commonAncestors.isEmpty()) {
             lockPool.lock(new lockRequest(Set.of(source.id(), destination.id()),
-                    1,
-                    List.of(source.getPathLabel(), destination.getPathLabel())),
+                            1,
+                            List.of(source.getPathLabel(), destination.getPathLabel())),
                     ThreadId);
         } else {
-            lockPool.lock(new lockRequest(Set.of(commonAncestors.get(commonAncestors.size()-1)), 1, commonAncestors), ThreadId);
+            lockPool.lock(new lockRequest(Set.of(commonAncestors.get(commonAncestors.size() - 1)), 1, commonAncestors), ThreadId);
         }
+        try {
 //        System.out.println("Got lock on edge " + ThreadId);
-        if(params.length <= 3)
-            graph.addEdge(source, destination, (String) params[2]);
-        else
-            graph.addEdge(source, destination, (String) params[2], (Object[]) params[3]);
-
-        lockPool.unlock(ThreadId);
+            if (params.length <= 3)
+                graph.addEdge(source, destination, (String) params[2]);
+            else
+                graph.addEdge(source, destination, (String) params[2], (Object[]) params[3]);
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
 //        System.out.println("Released lock on edge "+ ThreadId);
     }
 
@@ -58,8 +62,11 @@ public class Queries {
         TinkerVertex v = (TinkerVertex) params[0];
         lockPool.lock(new lockRequest(Set.of(v.id()), 1, v.getPathLabel()), ThreadId);
 //        System.out.println("Got lock on vertex " + v.id());
-        v.property((String) params[1], params[2]);
-        lockPool.unlock(ThreadId);
+        try {
+            v.property((String) params[1], params[2]);
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
 //        System.out.println("Released lock on vertex " + v.id());
     }
 
@@ -73,10 +80,13 @@ public class Queries {
         if (commonAncestors.isEmpty()) {
             lockPool.lock(new lockRequest(Set.of(source.id(), destination.id()), 1, List.of(source.getPathLabel(), destination.getPathLabel())), ThreadId);
         } else {
-            lockPool.lock(new lockRequest(Set.of((commonAncestors.get(commonAncestors.size()-1))), 1, commonAncestors), ThreadId);
+            lockPool.lock(new lockRequest(Set.of((commonAncestors.get(commonAncestors.size() - 1))), 1, commonAncestors), ThreadId);
         }
-        e.property((String) params[1], params[2]);
-        lockPool.unlock(ThreadId);
+        try {
+            e.property((String) params[1], params[2]);
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     // Delete operations.
@@ -85,8 +95,11 @@ public class Queries {
         Object[] params = funcParams.getRight();
         TinkerVertex v = (TinkerVertex) params[0];
         lockPool.lock(new lockRequest(Set.of(v.id()), 1, v.getPathLabel()), ThreadId);
-        graph.removeVertex(v);
-        lockPool.unlock(ThreadId);
+        try {
+            v.remove();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void removeEdge(Pair<Integer, Object[]> funcParams) {
@@ -99,10 +112,13 @@ public class Queries {
         if (commonAncestors.isEmpty()) {
             lockPool.lock(new lockRequest(Set.of(source.id(), destination.id()), 1, List.of(source.getPathLabel(), destination.getPathLabel())), ThreadId);
         } else {
-            lockPool.lock(new lockRequest(Set.of(commonAncestors.get(commonAncestors.size()-1)), 1, commonAncestors), ThreadId);
+            lockPool.lock(new lockRequest(Set.of(commonAncestors.get(commonAncestors.size() - 1)), 1, commonAncestors), ThreadId);
         }
-        graph.removeEdge(params[0]);
-        lockPool.unlock(ThreadId);
+        try {
+            e.remove();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void removeVertexProperty(Pair<Integer, Object[]> funcParams) {
@@ -110,8 +126,11 @@ public class Queries {
         Object[] params = funcParams.getRight();
         TinkerVertex v = (TinkerVertex) params[0];
         lockPool.lock(new lockRequest(Set.of(v.id()), 1, v.getPathLabel()), ThreadId);
-        v.property((String) params[1]).remove();
-        lockPool.unlock(ThreadId);
+        try {
+            v.property((String) params[1]).remove();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void removeEdgeProperty(Pair<Integer, Object[]> funcParams) {
@@ -124,11 +143,13 @@ public class Queries {
         if (commonAncestors.isEmpty()) {
             lockPool.lock(new lockRequest(Set.of(source.id(), destination.id()), 1, List.of(source.getPathLabel(), destination.getPathLabel())), ThreadId);
         } else {
-            lockPool.lock(new lockRequest(Set.of(commonAncestors.get(commonAncestors.size()-1)), 1, commonAncestors), ThreadId);
+            lockPool.lock(new lockRequest(Set.of(commonAncestors.get(commonAncestors.size() - 1)), 1, commonAncestors), ThreadId);
         }
-
-        e.property((String) params[1]).remove();
-        lockPool.unlock(ThreadId);
+        try {
+            e.property((String) params[1]).remove();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     // Simple Read operations.
@@ -136,66 +157,88 @@ public class Queries {
         int ThreadId = funcParams.getLeft();
         lockRequest lock = new lockRequest(Set.of(), 2, List.of());
         lockPool.lock(lock, ThreadId);
-//        System.out.println("Got global read lock on vertex count");
-        graph.traversal().V().count().next();
-        lockPool.unlock(ThreadId);
-//        System.out.println("Released global read lock on vertex count");
+        try {
+            graph.traversal().V().count().next();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void getEdgeCount(Pair<Integer, Object[]> funcParams) {
         int ThreadId = funcParams.getLeft();
         lockRequest lock = new lockRequest(Set.of(), 2, List.of());
         lockPool.lock(lock, ThreadId);
-        graph.traversal().E().count().next();
-        lockPool.unlock(ThreadId);
+        try {
+            graph.traversal().E().count().next();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void getUniqueEdgeLabels(Pair<Integer, Object[]> funcParams) {
         int ThreadId = funcParams.getLeft();
         Object[] params = funcParams.getRight();
         lockPool.lock(new lockRequest(Set.of(), 2, List.of()), ThreadId);
-        graph.traversal().E().label().dedup().toList();
-        lockPool.unlock(ThreadId);
+        try {
+            graph.traversal().E().label().dedup().toList();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void getVerticesByProperty(Pair<Integer, Object[]> funcParams) {
         int ThreadId = funcParams.getLeft();
         Object[] params = funcParams.getRight();
         lockPool.lock(new lockRequest(Set.of(), 2, List.of()), ThreadId);
-        graph.traversal().V().has((String) params[0], params[1]).toList();
-        lockPool.unlock(ThreadId);
+        try {
+            graph.traversal().V().has((String) params[0], params[1]).toList();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void getEdgesByProperty(Pair<Integer, Object[]> funcParams) {
         int ThreadId = funcParams.getLeft();
         Object[] params = funcParams.getRight();
         lockPool.lock(new lockRequest(Set.of(), 2, List.of()), ThreadId);
-        graph.traversal().E().has((String) params[0], params[1]).toList();
-        lockPool.unlock(ThreadId);
+        try {
+            graph.traversal().E().has((String) params[0], params[1]).toList();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void getEdgesByLabel(Pair<Integer, Object[]> funcParams) {
         int ThreadId = funcParams.getLeft();
         Object[] params = funcParams.getRight();
         lockPool.lock(new lockRequest(Set.of(), 2, List.of()), ThreadId);
-        graph.traversal().E().hasLabel((String) params[0]).toList();
-        lockPool.unlock(ThreadId);
+        try {
+            graph.traversal().E().hasLabel((String) params[0]).toList();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void getVertexById(Pair<Integer, Object[]> funcParams) {
         int ThreadId = funcParams.getLeft();
         Object[] params = funcParams.getRight();
         lockPool.lock(new lockRequest(Set.of(), 2, List.of()), ThreadId);
-        graph.traversal().V(params[0]).next();
-        lockPool.unlock(ThreadId);
+        try {
+            graph.traversal().V(params[0]).next();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void getEdgeById(Pair<Integer, Object[]> funcParams) {
         int ThreadId = funcParams.getLeft();
         Object[] params = funcParams.getRight();
         lockPool.lock(new lockRequest(Set.of(), 2, List.of()), ThreadId);
-        graph.traversal().E(params[0]).next();
-        lockPool.unlock(ThreadId);
+        try {
+            graph.traversal().E(params[0]).next();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
 
@@ -205,37 +248,37 @@ public class Queries {
 //        int ThreadId = funcParams.getLeft();
 //        Object[] params = funcParams.getRight();
 ////        lockPool.lock(new lockRequest(Set.of(), 2, List.of()), ThreadId);
-//        graph.traversal().V(params[1]).in().toList();
+//        graph.traversal().V(params[1]).in();
 //    }
 //
 //    public static void getChildren(Pair<Integer, Object[]> funcParams) {
 //        int ThreadId = funcParams.getLeft();
 //        Object[] params = funcParams.getRight();
-//        graph.traversal().V(params[1]).out().toList();
+//        graph.traversal().V(params[1]).out();
 //    }
 //
 //    public static void getNeighborsWithLabel(Pair<Integer, Object[]> funcParams) {
 //        int ThreadId = funcParams.getLeft();
 //        Object[] params = funcParams.getRight();
-//        graph.traversal().V(params[1]).both((String) params[2]).toList();
+//        graph.traversal().V(params[1]).both((String) params[2]);
 //    }
 //
 //    public static void getUniqueLabelsOfParents(Pair<Integer, Object[]> funcParams) {
 //        int ThreadId = funcParams.getLeft();
 //        Object[] params = funcParams.getRight();
-//        graph.traversal().V(params[1]).in().label().dedup().toList();
+//        graph.traversal().V(params[1]).in().label().dedup();
 //    }
 //
 //    public static void getUniqueLabelsOfChildren(Pair<Integer, Object[]> funcParams) {
 //        int ThreadId = funcParams.getLeft();
 //        Object[] params = funcParams.getRight();
-//        graph.traversal().V(params[1]).out().label().dedup().toList();
+//        graph.traversal().V(params[1]).out().label().dedup();
 //    }
 //
 //    public static void getUniqueLabelsOfNeighbors(Pair<Integer, Object[]> funcParams) {
 //        int ThreadId = funcParams.getLeft();
 //        Object[] params = funcParams.getRight();
-//        graph.traversal().V(params[1]).both().label().dedup().toList();
+//        graph.traversal().V(params[1]).both().label().dedup();
 //    }
 
 
@@ -244,32 +287,33 @@ public class Queries {
         int ThreadId = funcParams.getLeft();
         Object[] params = funcParams.getRight();
         lockPool.lock(new lockRequest(Set.of(), 2, List.of()), ThreadId);
-        graph.traversal().V().filter(__.inE().count().is(gt(params[0]))).toList();
-        lockPool.unlock(ThreadId);
-    }
-
-    public static void getVerticesMinKOUT(Pair<Integer, Object[]> funcParams) {
-        int ThreadId = funcParams.getLeft();
-        Object[] params = funcParams.getRight();
-        lockPool.lock(new lockRequest(Set.of(), 2, List.of()), ThreadId);
-        graph.traversal().V().filter(__.outE().count().is(gt(params[0]))).toList();
-        lockPool.unlock(ThreadId);
+        try {
+            graph.traversal().V().filter(inE().count().is(gt(params[0]))).toList();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void getVerticesMinK(Pair<Integer, Object[]> funcParams) {
         int ThreadId = funcParams.getLeft();
         Object[] params = funcParams.getRight();
         lockPool.lock(new lockRequest(Set.of(), 2, List.of()), ThreadId);
-        graph.traversal().V().filter(__.bothE().count().is(gt(params[0]))).toList();
-        lockPool.unlock(ThreadId);
+        try {
+            graph.traversal().V().filter(bothE().count().is(gt(params[0]))).toList();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void getVerticesWithnIncomingEdges(Pair<Integer, Object[]> funcParams) {
         int ThreadId = funcParams.getLeft();
         Object[] params = funcParams.getRight();
         lockPool.lock(new lockRequest(Set.of(), 2, List.of()), ThreadId);
-        graph.traversal().V().filter(__.inE().count().is(params[0])).toList();
-        lockPool.unlock(ThreadId);
+        try {
+            graph.traversal().V().filter(inE().count().is(params[0])).toList();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void BFSFromVertex(Pair<Integer, Object[]> funcParams) {
@@ -277,8 +321,11 @@ public class Queries {
         Object[] params = funcParams.getRight();
         TinkerVertex v = (TinkerVertex) params[1];
         lockPool.lock(new lockRequest(Set.of(v.id()), 2, v.getPathLabel()), ThreadId);
-        graph.traversal().V(params[0]).repeat(__.out()).times(2).dedup().toList();
-        lockPool.unlock(ThreadId);
+        try {
+            graph.traversal().V(params[1]).repeat(__.out()).times(1).dedup();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void BFSFromVertexWithLabel(Pair<Integer, Object[]> funcParams) {
@@ -286,8 +333,11 @@ public class Queries {
         Object[] params = funcParams.getRight();
         TinkerVertex v = (TinkerVertex) params[0];
         lockPool.lock(new lockRequest(Set.of(v.id()), 2, v.getPathLabel()), ThreadId);
-        graph.traversal().V(params[0]).repeat(__.out((String) params[1])).times(2).dedup().toList();
-        lockPool.unlock(ThreadId);
+        try {
+            graph.traversal().V(params[0]).repeat(__.out((String) params[1])).times(1).dedup().toList();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void getShortestPath(Pair<Integer, Object[]> funcParams) {
@@ -299,10 +349,13 @@ public class Queries {
         if (commonAncestors.isEmpty()) {
             lockPool.lock(new lockRequest(Set.of(source.id(), destination.id()), 1, List.of(source.getPathLabel(), destination.getPathLabel())), ThreadId);
         } else {
-            lockPool.lock(new lockRequest(Set.of(commonAncestors.get(commonAncestors.size()-1)), 1, commonAncestors), ThreadId);
+            lockPool.lock(new lockRequest(Set.of(commonAncestors.get(commonAncestors.size() - 1)), 1, commonAncestors), ThreadId);
         }
-        graph.traversal().V(((TinkerVertex) params[0]).id()).repeat(__.out().simplePath()).until(__.hasId(((TinkerVertex) params[1]).id())).path().limit(1).toList();
-        lockPool.unlock(ThreadId);
+        try {
+            graph.traversal().V(source.id()).repeat(__.out().simplePath()).until(__.hasId(destination.id())).path().limit(1).toList();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 
     public static void getShortestPathWithLabel(Pair<Integer, Object[]> funcParams) {
@@ -314,9 +367,12 @@ public class Queries {
         if (commonAncestors.isEmpty()) {
             lockPool.lock(new lockRequest(Set.of(source.id(), destination.id()), 1, List.of(source.getPathLabel(), destination.getPathLabel())), ThreadId);
         } else {
-            lockPool.lock(new lockRequest(Set.of(commonAncestors.get(commonAncestors.size()-1)), 1, commonAncestors), ThreadId);
+            lockPool.lock(new lockRequest(Set.of(commonAncestors.get(commonAncestors.size() - 1)), 1, commonAncestors), ThreadId);
         }
-        graph.traversal().V(source.id()).repeat(__.out((String) params[2]).simplePath()).until(__.is(P.within(destination.id()))).path().limit(1).toList();
-        lockPool.unlock(ThreadId);
+        try {
+            graph.traversal().V(source.id()).repeat(__.out((String) params[2]).simplePath()).until(__.hasId(destination.id())).path().limit(1).toList();
+        } finally {
+            lockPool.unlock(ThreadId);
+        }
     }
 }
