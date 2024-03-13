@@ -1,0 +1,6 @@
+org/example/Main.class
+org/example/threads/workerThread.class
+locking/lockRequest.class
+org/example/operations/Queries.class
+org/example/operations/Operation.class
+locking/lockPool.class
